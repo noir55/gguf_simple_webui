@@ -40,7 +40,7 @@ $ python3 gguf-webui.py \
 
 Vicuna 13B v1.5 16kモデルでの実行コマンド例 (コンテキスト拡張されているため、Rope Scalingの設定が必要)
 ```bash
-$ python3 llm-webui.py \
+$ python3 gguf-webui.py \
         --model ~/GGUF_Model/vicuna-13b-v1.5-16k.Q4_K_M.gguf \
         --gpu on \
         --gpu-layers 30 \
@@ -210,4 +210,4 @@ A: <モデルの出力した文章>
 
 # ライセンス
 
-Japanese LLM Simple WebUI is under [MIT license](https://en.wikipedia.org/wiki/MIT_License).
+GGUF Simple WebUI is under [MIT license](https://en.wikipedia.org/wiki/MIT_License).
