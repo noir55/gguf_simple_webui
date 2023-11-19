@@ -1,5 +1,5 @@
 # GGUF Simple WebUI
-llama-cpp-python(llama.cpp)で実行するGGUF形式のLLM用の簡易Webチャットインタフェースです。
+llama-cpp-python(llama.cpp)で実行するGGUF形式のLLM用の簡易Webチャットインタフェースです。[Japanese LLM Simple WebUI](https://github.com/noir55/japanese_llm_simple_webui) のGGUFモデル版です。
 
 # 機能
 - ブラウザで開いたWebインタフェース上で、LLMとのチャットができます
