@@ -44,7 +44,7 @@ USE_MMAP = "off"
 # MLOCKを使用するか
 USE_MLOCK = "on"
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","openbuddy","airoboros","beluga","ja-stablelm","mixtral","chatml","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","openbuddy","airoboros","beluga","ja-stablelm","mixtral","swallow","chatml","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 4096
@@ -175,6 +175,13 @@ def prompt(curr_system_message, history):
             f"</s><s>".join(["".join([f"[INST]"+item[0], f"[/INST]"+item[1]])
                     for item in history])
         messages = prefix + messages
+    # Swallow形式のプロンプト生成
+    elif PROMPT_TYPE == "swallow":
+        prefix = f"""以下に、あるタスクを説明する指示があります。リクエストを適切に完了するための回答を記述してください。{new_line}{new_line}"""
+        messages = curr_system_message + \
+            f"{new_line}{new_line}".join([new_line.join([f"### 指示:{new_line}"+item[0], f"{new_line}### 応答:{new_line}"+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # ChatML形式のプロンプト生成
     elif PROMPT_TYPE == "chatml":
         prefix = f"""<|im_start|>system{new_line}以下の質問に日本語で答えてください<|im_end|>{new_line}<|im_start|>"""
@@ -270,7 +277,7 @@ parser.add_argument("--tensor-split", type=str, default=TENSOR_SPLIT, help="複�
 parser.add_argument("--threads", type=int, default=THREAD_NUM, help="使用するCPUコア数")
 parser.add_argument("--use-mmap", type=str, choices=["on", "off"], default=USE_MMAP, help="mmapが使用可能な場合に使用するか")
 parser.add_argument("--use-mlock", type=str, choices=["on", "off"], default=USE_MLOCK, help="mlockを使用するか")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "openbuddy", "airoboros", "codellama", "elyzallama2", "beluga", "ja-stablelm", "mixtral", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "openbuddy", "airoboros", "codellama", "elyzallama2", "beluga", "ja-stablelm", "mixtral", "swallow", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
