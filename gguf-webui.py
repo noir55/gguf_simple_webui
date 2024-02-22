@@ -23,6 +23,9 @@ MODEL_TYPE = "llama"
 # ベースモデルファイルを指定
 BASE_MODEL = "/path/to/model_file.gguf"
 
+# LoRAのパス(空文字列に設定すると読み込まない)
+LORA_WEIGHTS = ""
+
 # コンテキストサイズの指定
 CONTEXT_SIZE = 4096
 # バッチサイズの指定
@@ -44,7 +47,7 @@ USE_MMAP = "off"
 # MLOCKを使用するか
 USE_MLOCK = "on"
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","openbuddy","airoboros","beluga","ja-stablelm","mixtral","swallow","nekomata","elyzallama2","chatml","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","openbuddy","airoboros","beluga","ja-stablelm","mixtral","swallow","nekomata","elyzallama2","karakuri","gemma", "chatml","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 4096
@@ -184,13 +187,23 @@ def prompt(curr_system_message, history):
         messages = prefix + messages
     # ELYZA japanese Llama2形式のプロンプト生成
     elif PROMPT_TYPE == "elyzallama2":
-        prefix = f"""<s>[INST] <<SYS>>
-あなたは誠実で優秀な日本人のアシスタントです。
-<</SYS>>{new_line}{new_line}"""
+        prefix = f"""<s>[INST] <<SYS>>{new_line}あなたは誠実で優秀な日本人のアシスタントです。{new_line}<</SYS>>{new_line}{new_line}"""
         messages = curr_system_message + \
             f"</s><s>".join(["".join([f"[INST]"+item[0], f"[/INST]"+item[1]])
                     for item in history]).replace(r'[INST]','',1)
         messages = prefix + messages
+    # KARAKURI LM形式のプロンプト生成
+    elif PROMPT_TYPE == "karakuri":
+        prefix = f"""<s>[INST] <<SYS>>{new_line}以下の質問やリクエストに対して適切な回答をしてください。{new_line}<</SYS>>{new_line}{new_line}"""
+        messages = curr_system_message + \
+            f"</s><s>".join(["".join([f"[INST]"+item[0], f"[ATTR] helpfulness: 4 correctness: 4 coherence: 4 complexity: 4 verbosity: 4 quality: 4 toxicity: 0 humor: 0 creativity: 0 [/ATTR] [/INST]"+item[1]])
+                    for item in history]).replace(r'[INST]','',1)
+        messages = prefix + messages
+    # Gemma形式のプロンプト生成
+    elif PROMPT_TYPE == "gemma":
+        messages = curr_system_message + \
+            f"<end_of_turn>model{new_line}".join(["".join([f"<start_of_turn>user{new_line}"+item[0], f"<end_of_turn>{new_line}<start_of_turn>model{new_line}"+item[1]])
+                    for item in history])
     # ChatML形式のプロンプト生成
     elif PROMPT_TYPE == "chatml":
         prefix = f"""<|im_start|>system{new_line}以下の質問に日本語で答えてください<|im_end|>{new_line}<|im_start|>"""
@@ -250,7 +263,7 @@ def chat(curr_system_message, history, p_temperature, p_top_k, p_top_p, p_repeti
                    top_p=p_top_p,
                    repeat_penalty=p_repetition_penalty,
                    stream=True,
-                   stop=["</s>"],
+                   stop=["</s>","<|im_end|>"],
                )
 
     #print(history)
@@ -278,6 +291,7 @@ def chat(curr_system_message, history, p_temperature, p_top_k, p_top_p, p_repeti
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
 parser.add_argument("--model-type", type=str, choices=["llama"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAのパス")
 parser.add_argument("--context-size", type=int, default=CONTEXT_SIZE, help="コンテキストサイズ")
 parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help="バッチサイズ")
 parser.add_argument("--gpu", type=str, choices=["on", "off"], default=USE_GPU, help="GPUを使用するかどうか(使用にはcublas対応のllama-cpp-pythonが必要)")
@@ -286,7 +300,7 @@ parser.add_argument("--tensor-split", type=str, default=TENSOR_SPLIT, help="複�
 parser.add_argument("--threads", type=int, default=THREAD_NUM, help="使用するCPUコア数")
 parser.add_argument("--use-mmap", type=str, choices=["on", "off"], default=USE_MMAP, help="mmapが使用可能な場合に使用するか")
 parser.add_argument("--use-mlock", type=str, choices=["on", "off"], default=USE_MLOCK, help="mlockを使用するか")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "openbuddy", "airoboros", "codellama", "elyzallama2", "beluga", "ja-stablelm", "mixtral", "swallow", "nekomata", "elyzallama2", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "openbuddy", "airoboros", "codellama", "elyzallama2", "beluga", "ja-stablelm", "mixtral", "swallow", "nekomata", "elyzallama2", "karakuri", "gemma", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -304,6 +318,7 @@ args = parser.parse_args()
 # 引数でセットされた値で上書きする
 BASE_MODEL = args.model
 MODEL_TYPE = args.model_type
+LORA_WEIGHTS = args.lora
 CONTEXT_SIZE = args.context_size
 BATCH_SIZE = args.batch_size
 USE_GPU = args.gpu
@@ -340,6 +355,10 @@ else:
 print("---- パラメータ ----")
 print(f"モデル名orパス: {BASE_MODEL}")
 print(f"モデルタイプ名: {MODEL_TYPE}")
+if LORA_WEIGHTS == "":
+    print(f"LoRAモデルパス: (LoRAなし)")
+else:
+    print(f"LoRAモデルパス: {LORA_WEIGHTS}")
 print(f"コンテキストサイズ: {CONTEXT_SIZE}")
 print(f"バッチサイズ: {BATCH_SIZE}")
 print(f"GPU使用: {USE_GPU}")
@@ -362,6 +381,9 @@ print(f"Webサーバポート番号: {GRADIO_PORT}")
 print(f"Webページタイトル: {TITLE_STRINGS}")
 print(f"デバッグ: {DEBUG_FLAG}\n")
 
+# LORA_WEIGHTSが指定されていなければNoneをセット
+if LORA_WEIGHTS == "":
+    LORA_WEIGHTS == None
 # USE_GPUはTrue or Falseに変換
 if USE_GPU == "on":
     USE_GPU = True
@@ -405,6 +427,7 @@ if MODEL_TYPE == "llama":
     if USE_GPU:
         m = Llama(
               model_path=BASE_MODEL,
+              lora_path=LORA_WEIGHTS,
               n_ctx=CONTEXT_SIZE,
               n_threads=THREAD_NUM,
               n_gpu_layers=GPU_LAYERS,
@@ -417,6 +440,7 @@ if MODEL_TYPE == "llama":
     else:
         m = Llama(
               model_path=BASE_MODEL,
+              lora_path=LORA_WEIGHTS,
               n_ctx=CONTEXT_SIZE,
               n_threads=THREAD_NUM,
               rope_freq_base=ROPE_BASE,
