@@ -451,21 +451,14 @@ else:
 # プロンプトの先頭に付加する文字列
 start_message = ""
 
-# Gradioチャットインタフェースを作成(詳細設定あり)
-if SETTING_VISIBLE:
-    gr.ChatInterface(fn=chat,
+# Gradioチャットインタフェースを作成
+gr.ChatInterface(fn=chat,
                  title=TITLE_STRINGS,
                  additional_inputs=[
-                                    gr.Slider(0.0, 1.0, value=TEMPERATURE, step=0.01, label="Temperature"),
-                                    gr.Slider(0, 1000, value=0, step=1, label="Top_K (0=無効)"),
-                                    gr.Slider(0.01, 1.00, value=1.00, step=0.01, label="Top_P (1.00=無効)"),
-                                    gr.Slider(1, 8192, value=MAX_NEW_TOKENS, step=1, label="Max New Tokens"),
-                                    gr.Slider(1.00, 5.00, value=REPETITION_PENALTY, step=0.01, label="Repetition Penalty (1.00=ペナルティなし)")
+                                    gr.Slider(0.0, 1.0, value=TEMPERATURE, step=0.01, label="Temperature", visible=SETTING_VISIBLE),
+                                    gr.Slider(0, 1000, value=0, step=1, label="Top_K (0=無効)", visible=SETTING_VISIBLE),
+                                    gr.Slider(0.01, 1.00, value=1.00, step=0.01, label="Top_P (1.00=無効)", visible=SETTING_VISIBLE),
+                                    gr.Slider(1, 8192, value=MAX_NEW_TOKENS, step=1, label="Max New Tokens", visible=SETTING_VISIBLE),
+                                    gr.Slider(1.00, 5.00, value=REPETITION_PENALTY, step=0.01, label="Repetition Penalty (1.00=ペナルティなし)", visible=SETTING_VISIBLE)
                                     ]
-                 ).queue().launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
-# Gradioチャットインタフェースを作成(詳細設定なし)
-else:
-    gr.ChatInterface(fn=predict,
-                 title=TITLE_STRINGS,
-                 ).queue().launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
-
+             ).queue().launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
