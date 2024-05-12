@@ -13,7 +13,7 @@ import re
 #------
 
 # バージョン
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "GGUF Chat"
@@ -81,31 +81,12 @@ DEBUG_FLAG = "on"
 # クラス、関数定義
 #------------------
 
-def user(message, history):
-    if history == None:
-        history = []
-    # Append the user's message to the conversation history
-    return "", history + [[message, ""]]
-
-# Regenerateボタンクリック時の動作
-def regen(history):
-    if len(history) == 0:
-        return "", [["", ""]]
-    else:
-        history[-1][1]=""
-        return history[-1][0], history
-
-# Remove lastボタンクリック時の動作
-def remove_last(history):
-    if len(history) == 0:
-        return "", [["", ""]]
-    else:
-        history.pop(-1)
-        return history
-
 # プロンプト文字列を生成する関数
-def prompt(curr_system_message, history):
-
+def prompt(message, past_message):
+    # 会話履歴と入力メッセージを合わせる
+    history = past_message + [[message, ""]]
+    # 先頭につけるシステムメッセージの定義
+    curr_system_message = ""
     # Vicuna形式のプロンプト生成
     if PROMPT_TYPE == "vicuna":
         prefix = f"""A chat between a curious user and an artificial intelligence assistant.{new_line}The assistant gives helpful, detailed, and polite answers to the user's questions.{new_line}{new_line}"""
@@ -241,7 +222,7 @@ def prompt(curr_system_message, history):
     return messages
 
 
-def chat(curr_system_message, history, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens):
+def chat(message, history, p_temperature, p_top_k, p_top_p, p_max_new_tokens, p_repetition_penalty):
 
     # 会話履歴を表示
     if DEBUG_FLAG:
@@ -251,24 +232,27 @@ def chat(curr_system_message, history, p_temperature, p_top_k, p_top_p, p_repeti
     del_flag = 0
     while True:
         # プロンプト文字列を生成する
-        messages = prompt(curr_system_message, history)
+        input_msg = prompt(message, history)
         # もしプロンプトの文字数が多すぎる場合は削除フラグを設定
-        if del_flag == 0 and len(messages) > PROMPT_THRESHOLD:
+        if del_flag == 0 and len(input_msg) > PROMPT_THRESHOLD:
             del_flag = 1
         # 削除フラグが設定され、かつPROMPT_DELETEDより文字数が多い場合は履歴の先頭を削除
-        if del_flag == 1 and len(messages) > PROMPT_DELETED:
+        if del_flag == 1 and len(input_msg) > PROMPT_DELETED:
             history.pop(0)
+            if DEBUG_FLAG:
+                print(f"会話履歴の先頭を削除しました(length={len(input_msg)})")
         # 削除フラグが設定されてないか、設定されているがPROMPT_DELETEDよりトークン数が少ない場合ループを抜ける
         else:
             break
 
     # プロンプトを標準出力に表示
     if DEBUG_FLAG:
-        print(f"--prompt strings--\n{messages}\n----\n")
+        print(f"--prompt strings--\n{input_msg}\n-----------------")
+        print(f"Generate Parameter: temperature={p_temperature} top_k={p_top_k} top_p={p_top_p} repeat_penalty={p_repetition_penalty} max_tokens={p_max_new_tokens}\n")
 
     # モデルに入力して回答を生成(ストリーミング出力させる)
     streamer = m.create_completion(
-                   messages,
+                   input_msg,
                    max_tokens=p_max_new_tokens,
                    temperature=p_temperature,
                    top_k=p_top_k,
@@ -286,13 +270,11 @@ def chat(curr_system_message, history, p_temperature, p_top_k, p_top_p, p_repeti
         if 'text' in temp:
             #print(temp['text'])
             partial_text += temp['text']
-            history[-1][1] = partial_text
             # Yield an empty string to cleanup the message textbox and the updated conversation history
-            yield history
+            yield partial_text
     if DEBUG_FLAG:
-        print(f"--generated strings--\n{partial_text}\n----\n")
-    #return partial_text
-    return history
+        print(f"--generated strings--\n{partial_text}\n---------------------\n")
+    #return history
 
 
 #------
@@ -469,49 +451,21 @@ else:
 # プロンプトの先頭に付加する文字列
 start_message = ""
 
-# Webページ
-with gr.Blocks(title="GGUF Simple WebUI", theme=gr.themes.Base()) as demo:
-    history = gr.State([])
-    gr.Markdown(f"## {TITLE_STRINGS}")
-    chatbot = gr.Chatbot(height=500)
-    with gr.Row():
-        with gr.Column(scale=20):
-            msg = gr.Textbox(label="Chat Message Box", placeholder="Chat Message Box",
-                             show_label=False, container=False)
-        with gr.Column(scale=1, min_width=100):
-            submit = gr.Button("Submit")
-    with gr.Row():
-                stop = gr.Button("Stop")
-                regenerate = gr.Button("Regenerate")
-                removelast = gr.Button("Remove last")
-                clear = gr.Button("Clear")
-    with gr.Accordion(label="Advanced Settings", open=False, visible=SETTING_VISIBLE):
-        with gr.Blocks():
-            p_temperature = gr.Slider(minimum=0.1, maximum=1.0, value=TEMPERATURE, step=0.1, label="Temperature", interactive=True)
-            p_top_k = gr.Slider(minimum=0, maximum=1000, value=0, step=1, label="Top_K (0=無効)", interactive=True)
-            p_top_p = gr.Slider(minimum=0.01, maximum=1.00, value=1.00, step=0.01, label="Top_P (1.00=無効)", interactive=True)
-        with gr.Blocks():
-            p_max_new_tokens = gr.Slider(minimum=1, maximum=4096, value=MAX_NEW_TOKENS, step=1, label="Max New Tokens", interactive=True)
-            p_repetition_penalty = gr.Slider(minimum=1.00, maximum=5.00, value=REPETITION_PENALTY, step=0.01, label="Repetition Penalty (1.00=ペナルティなし)", interactive=True)
+# Gradioチャットインタフェースを作成(詳細設定あり)
+if SETTING_VISIBLE:
+    gr.ChatInterface(fn=chat,
+                 title=TITLE_STRINGS,
+                 additional_inputs=[
+                                    gr.Slider(0.0, 1.0, value=TEMPERATURE, step=0.01, label="Temperature"),
+                                    gr.Slider(0, 1000, value=0, step=1, label="Top_K (0=無効)"),
+                                    gr.Slider(0.01, 1.00, value=1.00, step=0.01, label="Top_P (1.00=無効)"),
+                                    gr.Slider(1, 8192, value=MAX_NEW_TOKENS, step=1, label="Max New Tokens"),
+                                    gr.Slider(1.00, 5.00, value=REPETITION_PENALTY, step=0.01, label="Repetition Penalty (1.00=ペナルティなし)")
+                                    ]
+                 ).queue().launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
+# Gradioチャットインタフェースを作成(詳細設定なし)
+else:
+    gr.ChatInterface(fn=predict,
+                 title=TITLE_STRINGS,
+                 ).queue().launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
 
-    system_msg = gr.Textbox(
-        start_message, label="System Message", interactive=False, visible=False)
-
-    submit_event = msg.submit(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
-        fn=chat, inputs=[system_msg, chatbot, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
-
-    submit_click_event = submit.click(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
-        fn=chat, inputs=[system_msg, chatbot, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
-
-    regenerate_click_event = regenerate.click(fn=regen, inputs=[chatbot], outputs=[msg, chatbot], queue=False).then(
-               lambda: None, None, [msg], queue=False).then(
-                   fn=chat, inputs=[system_msg, chatbot, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
-
-    stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event, submit_click_event, regenerate_click_event], queue=False)
-
-    removelast.click(fn=remove_last, inputs=[chatbot], outputs=[chatbot], queue=False)
-
-    clear.click(lambda: None, None, [chatbot], queue=False)
-
-demo.queue(max_size=32, concurrency_count=2)
-demo.launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
